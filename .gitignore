@@ -102,3 +102,8 @@ jspm_packages/
 
 # Git worktrees
 cc-worktrees/
+
+# Windsurf
+.windsurf
+.claude
+.mcp.json
