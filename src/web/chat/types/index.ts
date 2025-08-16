@@ -18,6 +18,18 @@ import type {
   FileSystemListResponse,
   CommandsResponse,
   GeminiHealthResponse,
+  // Plan-related types
+  PlanData,
+  PlanStep,
+  PlanFormat,
+  PlanMetadata,
+  PlanToolProps,
+  PlanToolInput,
+  PlanProcessingResult,
+  PlanProcessingConfig,
+  PlanProcessingError,
+  ExitPlanModeInput,
+  ExitPlanModeResult,
 } from '@/types';
 
 // Import ContentBlock from Anthropic SDK
@@ -42,6 +54,18 @@ export type {
   FileSystemListResponse,
   CommandsResponse,
   GeminiHealthResponse,
+  // Plan-related types
+  PlanData,
+  PlanStep,
+  PlanFormat,
+  PlanMetadata,
+  PlanToolProps,
+  PlanToolInput,
+  PlanProcessingResult,
+  PlanProcessingConfig,
+  PlanProcessingError,
+  ExitPlanModeInput,
+  ExitPlanModeResult,
 };
 
 // Chat-specific types
