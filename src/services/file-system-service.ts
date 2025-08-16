@@ -198,10 +198,11 @@ export class FileSystemService {
     const segments = normalizedPath.split(path.sep);
     
     for (const segment of segments) {
-      if (!segment) continue;
+      // Fix: Handle Windows path parsing that can produce empty segments
+      if (!segment || segment === '') continue;
       
-      // Check for hidden files/directories
-      if (segment.startsWith('.')) {
+      // Fix: Hidden File Detection - only block hidden files that aren't . or ..
+      if (segment.startsWith('.') && segment.length > 1 && segment !== '..') {
         this.logger.warn('Hidden file/directory detected', { 
           requestedPath, 
           segment 
@@ -218,8 +219,8 @@ export class FileSystemService {
         throw new CUIError('INVALID_PATH', 'Path contains null bytes', 400);
       }
       
-      // Check for invalid characters
-      if (/[<>:|?*]/.test(segment)) {
+      // Fix: Windows Drive Letter - allow drive letters like D:, C:, etc.
+      if (/[<>|?*]/.test(segment) || (segment.includes(':') && !segment.match(/^[A-Za-z]:$/))) {
         this.logger.warn('Invalid characters detected in path', { 
           requestedPath, 
           segment 

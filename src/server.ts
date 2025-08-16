@@ -24,6 +24,19 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
   
+  // Handle unhandled errors that might crash the server
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection', { promise: String(promise), reason: String(reason) });
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+  });
+  
   try {
     await globalServer.start();
   } catch (error) {

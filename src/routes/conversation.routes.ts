@@ -32,6 +32,15 @@ export function createConversationRoutes(
   const router = Router();
   const logger = createLogger('ConversationRoutes');
 
+  // Test endpoint to isolate the issue
+  router.post('/test', async (req: RequestWithRequestId, res, next) => {
+    try {
+      res.json({ status: 'success', message: 'Test endpoint working' });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Start new conversation (also handles resume if resumedSessionId is provided)
   router.post('/start', async (req: Request<Record<string, never>, StartConversationResponse, StartConversationRequest> & RequestWithRequestId, res, next) => {
     const requestId = req.requestId;
@@ -113,7 +122,36 @@ export function createConversationRoutes(
         permissionMode: req.body.permissionMode || inheritedPermissionMode
       };
       
-      const { streamingId, systemInit } = await processManager.startConversation(conversationConfig);
+      logger.debug('About to start conversation with config', {
+        requestId,
+        configKeys: Object.keys(conversationConfig),
+        workingDirectory: conversationConfig.workingDirectory,
+        hasInitialPrompt: !!conversationConfig.initialPrompt,
+        previousMessageCount: conversationConfig.previousMessages?.length || 0
+      });
+      
+      let streamingId: string;
+      let systemInit: any;
+      
+      try {
+        const result = await processManager.startConversation(conversationConfig);
+        streamingId = result.streamingId;
+        systemInit = result.systemInit;
+        
+        logger.debug('startConversation returned successfully', {
+          requestId,
+          streamingId,
+          sessionId: systemInit.session_id
+        });
+      } catch (startError) {
+        logger.error('startConversation failed with error', {
+          requestId,
+          errorName: startError instanceof Error ? startError.name : 'Unknown',
+          errorMessage: startError instanceof Error ? startError.message : String(startError),
+          errorStack: startError instanceof Error ? startError.stack : undefined
+        });
+        throw startError;
+      }
       
       // Update original session with continuation session ID if resuming
       if (req.body.resumedSessionId) {

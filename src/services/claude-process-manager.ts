@@ -58,44 +58,88 @@ export class ClaudeProcessManager extends EventEmitter {
   }
 
   /**
-   * Find the Claude executable from node_modules
+   * Properly quote command line arguments for Windows to handle spaces and special characters
+   * This fixes input truncation and symbol parsing issues on Windows
+   */
+  private quoteWindowsArgument(arg: string): string {
+    if (process.platform !== 'win32') {
+      return arg;
+    }
+    
+    // If argument contains spaces, special characters, or is empty, it needs to be quoted
+    if (arg.includes(' ') || arg.includes('\t') || arg.includes('"') || arg.includes('@') || arg.length === 0) {
+      // Escape any existing double quotes by doubling them
+      const escaped = arg.replace(/"/g, '""');
+      return `"${escaped}"`;
+    }
+    
+    return arg;
+  }
+
+  /**
+   * Find the Claude executable - prioritize global installation for better compatibility
    * Since @anthropic-ai/claude-code is a dependency, claude should be in node_modules/.bin
    */
   private findClaudeExecutable(): string {
-    // When running as an npm package, find claude relative to this module
-    // __dirname will be something like /path/to/node_modules/cui-server/dist/services
-    const packageRoot = path.resolve(__dirname, '..', '..');
-    const claudePath = path.join(packageRoot, 'node_modules', '.bin', 'claude');
+    // On Windows, we need to use .cmd files
+    const claudeExe = process.platform === 'win32' ? 'claude.cmd' : 'claude';
     
-    if (existsSync(claudePath)) {
-      return claudePath;
+    // PRIORITY 1: Try known global paths first for Windows (more reliable than PATH parsing)
+    if (process.platform === 'win32') {
+      const commonGlobalPaths = [
+        'C:\\Program Files\\nodejs\\claude.cmd',
+        'C:\\Program Files (x86)\\nodejs\\claude.cmd',
+        path.join(process.env.APPDATA || '', 'npm', 'claude.cmd'),
+        path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming', 'npm', 'claude.cmd')
+      ];
+      
+      for (const candidate of commonGlobalPaths) {
+        if (existsSync(candidate)) {
+          this.logger?.debug('Found global Claude CLI', { path: candidate });
+          return candidate;
+        }
+      }
     }
     
-    // Try from the parent node_modules (when cui-server is installed as a dependency)
-    // packageRoot -> /node_modules/cui-server
-    // parent -> /node_modules, so /node_modules/.bin/claude
-    const parentModulesPath = path.resolve(packageRoot, '..', '.bin', 'claude');
-    if (existsSync(parentModulesPath)) {
-      return parentModulesPath;
-    }
-    
-    // Fallback: try from current working directory (for local development)
-    const cwdPath = path.join(process.cwd(), 'node_modules', '.bin', 'claude');
-    if (existsSync(cwdPath)) {
-      return cwdPath;
-    }
-    
-    // Final fallback: try to locate on PATH
+    // PRIORITY 2: Try global Claude CLI via PATH (for development compatibility)
+    // This ensures we use the same Claude CLI that works with user's authentication
     const pathEnv = process.env.PATH || '';
     const pathDirs = pathEnv.split(path.delimiter);
     for (const dir of pathDirs) {
-      const candidate = path.join(dir, 'claude');
+      const candidate = path.join(dir, claudeExe);
       if (existsSync(candidate)) {
+        this.logger?.debug('Found Claude CLI in PATH', { path: candidate });
         return candidate;
       }
     }
     
-    throw new Error('Claude executable not found in node_modules. Ensure @anthropic-ai/claude-code is installed.');
+    // PRIORITY 3: When running as an npm package, find claude relative to this module
+    // __dirname will be something like /path/to/node_modules/cui-server/dist/services
+    const packageRoot = path.resolve(__dirname, '..', '..');
+    const claudePath = path.join(packageRoot, 'node_modules', '.bin', claudeExe);
+    
+    if (existsSync(claudePath)) {
+      this.logger?.debug('Found Claude CLI in package node_modules', { path: claudePath });
+      return claudePath;
+    }
+    
+    // PRIORITY 4: Try from the parent node_modules (when cui-server is installed as a dependency)
+    // packageRoot -> /node_modules/cui-server
+    // parent -> /node_modules, so /node_modules/.bin/claude
+    const parentModulesPath = path.resolve(packageRoot, '..', '.bin', claudeExe);
+    if (existsSync(parentModulesPath)) {
+      this.logger?.debug('Found Claude CLI in parent node_modules', { path: parentModulesPath });
+      return parentModulesPath;
+    }
+    
+    // PRIORITY 5: Fallback: try from current working directory (for local development)
+    const cwdPath = path.join(process.cwd(), 'node_modules', '.bin', claudeExe);
+    if (existsSync(cwdPath)) {
+      this.logger?.debug('Found Claude CLI in cwd node_modules', { path: cwdPath });
+      return cwdPath;
+    }
+    
+    throw new Error(`Claude executable (${claudeExe}) not found. Please ensure Claude CLI is installed globally or @anthropic-ai/claude-code is installed.`);
   }
 
   /**
@@ -621,7 +665,7 @@ export class ClaudeProcessManager extends EventEmitter {
     
     args.push(
       '--resume', config.sessionId, // Resume existing session
-      config.message, // Message to continue with
+      this.quoteWindowsArgument(config.message), // Message to continue with (quoted for Windows)
       '--output-format', 'stream-json', // JSONL output format
       '--verbose' // Required when using stream-json with print mode
     );
@@ -653,9 +697,9 @@ export class ClaudeProcessManager extends EventEmitter {
     });
     const args = this.buildBaseArgs();
 
-    // Add initial prompt immediately after -p
+    // Add initial prompt immediately after -p (quote for Windows to handle spaces and special chars)
     if (config.initialPrompt) {
-      args.push(config.initialPrompt);
+      args.push(this.quoteWindowsArgument(config.initialPrompt));
     }
 
     args.push(
@@ -788,11 +832,33 @@ export class ClaudeProcessManager extends EventEmitter {
         }, {} as Record<string, string | undefined>)
       });
       
-      const claudeProcess = spawn(executablePath, args, {
+      const spawnOptions: any = {
         cwd,
         env,
         stdio: ['inherit', 'pipe', 'pipe'] // stdin inherited, stdout/stderr piped for capture
-      });
+      };
+      
+      // On Windows, we need shell: true for .cmd files and proper path quoting for paths with spaces
+      if (process.platform === 'win32' && executablePath.endsWith('.cmd')) {
+        spawnOptions.shell = true;
+        this.logger.debug('Using shell: true for Windows .cmd file', { streamingId, executablePath });
+        
+        // If path contains spaces, we need to quote it properly for shell execution
+        let quotedExecutablePath = executablePath;
+        if (executablePath.includes(' ')) {
+          quotedExecutablePath = `"${executablePath}"`;
+          this.logger.debug('Quoted executable path for Windows shell', { 
+            streamingId, 
+            original: executablePath, 
+            quoted: quotedExecutablePath 
+          });
+        }
+        
+        const claudeProcess = spawn(quotedExecutablePath, args, spawnOptions);
+        return claudeProcess;
+      }
+      
+      const claudeProcess = spawn(executablePath, args, spawnOptions);
       
       // Handle spawn errors (like ENOENT when claude is not found)
       claudeProcess.on('error', (error: Error & NodeJS.ErrnoException) => {

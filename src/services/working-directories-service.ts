@@ -21,6 +21,9 @@ export class WorkingDirectoriesService {
       const directoryMap = new Map<string, {
         lastDate: Date;
         count: number;
+        taskCount: number;
+        historyCount: number;
+        archiveCount: number;
       }>();
 
       for (const conversation of conversations) {
@@ -30,13 +33,35 @@ export class WorkingDirectoriesService {
         const existing = directoryMap.get(path);
         const conversationDate = new Date(conversation.updatedAt);
 
+        // Determine conversation category based on sessionInfo
+        const isArchived = conversation.sessionInfo.archived;
+        const isContinuation = !!conversation.sessionInfo.continuation_session_id;
+        
+        let taskIncrement = 0;
+        let historyIncrement = 0;
+        let archiveIncrement = 0;
+
+        if (isArchived) {
+          archiveIncrement = 1;
+        } else if (isContinuation) {
+          historyIncrement = 1;
+        } else {
+          taskIncrement = 1;
+        }
+
         if (!existing || conversationDate > existing.lastDate) {
           directoryMap.set(path, {
             lastDate: conversationDate,
-            count: (existing?.count || 0) + 1
+            count: (existing?.count || 0) + 1,
+            taskCount: (existing?.taskCount || 0) + taskIncrement,
+            historyCount: (existing?.historyCount || 0) + historyIncrement,
+            archiveCount: (existing?.archiveCount || 0) + archiveIncrement
           });
         } else {
           existing.count++;
+          existing.taskCount += taskIncrement;
+          existing.historyCount += historyIncrement;
+          existing.archiveCount += archiveIncrement;
         }
       }
 
@@ -51,7 +76,10 @@ export class WorkingDirectoriesService {
           path,
           shortname: shortnames.get(path) || path.split('/').pop() || path,
           lastDate: metadata.lastDate.toISOString().replace(/\.\d{3}Z$/, 'Z'), // Remove milliseconds for consistency
-          conversationCount: metadata.count
+          conversationCount: metadata.count,
+          taskCount: metadata.taskCount,
+          historyCount: metadata.historyCount,
+          archiveCount: metadata.archiveCount
         });
       }
 
