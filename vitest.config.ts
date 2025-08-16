@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: 'happy-dom',
     globals: true,
     root: '.',
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
