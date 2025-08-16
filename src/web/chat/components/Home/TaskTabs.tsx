@@ -8,8 +8,8 @@ interface TaskTabsProps {
 
 export function TaskTabs({ activeTab, onTabChange }: TaskTabsProps) {
   return (
-    <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as 'tasks' | 'history' | 'archive')} className="w-full mt-4">
-      <div className="w-full border-b border-border/30">
+    <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as 'tasks' | 'history' | 'archive')} className="mt-4">
+      <div className="border-b border-border/30">
         <TabsList className="w-64 flex justify-start gap-4 bg-transparent rounded-none h-auto p-0">
           <TabsTrigger 
             value="tasks" 

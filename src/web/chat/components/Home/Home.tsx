@@ -6,11 +6,16 @@ import { Header } from './Header';
 import { Composer, ComposerRef } from '@/web/chat/components/Composer';
 import { TaskTabs } from './TaskTabs';
 import { TaskList } from './TaskList';
+import { DirectoryFilter } from './DirectoryFilter';
+import { calculateDirectoryOptionsFromWorkingDirs, calculateTotalCountForTab, type WorkingDirectoryData } from '../../utils/directory-utils';
 
 export function Home() {
   const navigate = useNavigate();
   const { 
     conversations, 
+    allConversations,
+    workingDirectories,
+    totalConversationsCount,
     loading, 
     loadingMore, 
     hasMore, 
@@ -21,6 +26,7 @@ export function Home() {
     getMostRecentWorkingDirectory 
   } = useConversations();
   const [activeTab, setActiveTab] = useState<'tasks' | 'history' | 'archive'>('tasks');
+  const [selectedDirectory, setSelectedDirectory] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const conversationCountRef = useRef(conversations.length);
   const composerRef = useRef<ComposerRef>(null);
@@ -30,18 +36,31 @@ export function Home() {
     conversationCountRef.current = conversations.length;
   }, [conversations.length]);
 
-  // Get filter parameters based on active tab
-  const getFiltersForTab = (tab: 'tasks' | 'history' | 'archive') => {
-    switch (tab) {
-      case 'tasks':
-        return { archived: false, hasContinuation: false };
-      case 'history':
-        return { hasContinuation: true };
-      case 'archive':
-        return { archived: true, hasContinuation: false };
-      default:
-        return {};
+  // Get filter parameters based on active tab and selected directory
+  const getFiltersForTab = (tab: 'tasks' | 'history' | 'archive', directory?: string) => {
+    const baseFilters = (() => {
+      switch (tab) {
+        case 'tasks':
+          return { archived: false, hasContinuation: false };
+        case 'history':
+          return { hasContinuation: true };
+        case 'archive':
+          return { archived: true, hasContinuation: false };
+        default:
+          return {};
+      }
+    })();
+
+    // Add directory filter if specific directory is selected
+    const directoryToUse = directory || selectedDirectory;
+    if (directoryToUse && directoryToUse !== 'all') {
+      return {
+        ...baseFilters,
+        projectPath: directoryToUse === 'no-project' ? undefined : directoryToUse
+      };
     }
+
+    return baseFilters;
   };
 
   // Auto-refresh on navigation back to Home
@@ -60,11 +79,11 @@ export function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array means this runs only on mount
 
-  // Reload conversations when tab changes
+  // Reload conversations when tab or directory changes
   useEffect(() => {
     loadConversations(undefined, getFiltersForTab(activeTab));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, selectedDirectory]);
 
   // Auto-refresh on focus
   useEffect(() => {
@@ -117,6 +136,25 @@ export function Home() {
       setIsSubmitting(false);
     }
   };
+
+  // Handle directory filter change
+  const handleDirectoryChange = (directory: string) => {
+    setSelectedDirectory(directory);
+  };
+
+  // Calculate directory options from working directories (accurate counts)
+  const workingDirectoriesData: WorkingDirectoryData[] = workingDirectories.map(dir => ({
+    path: dir.path,
+    shortname: dir.shortname,
+    lastDate: dir.lastDate,
+    conversationCount: dir.conversationCount,
+    taskCount: dir.taskCount,
+    historyCount: dir.historyCount,
+    archiveCount: dir.archiveCount
+  }));
+
+  const directoryOptions = calculateDirectoryOptionsFromWorkingDirs(workingDirectoriesData, activeTab);
+  const tabTotalCount = calculateTotalCountForTab(workingDirectoriesData, activeTab);
 
   return (
     <div className="flex flex-col h-screen w-full bg-background">
@@ -182,10 +220,21 @@ export function Home() {
                 />
               </div>
 
-              <TaskTabs 
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-              />
+              <div className="flex items-end justify-between w-full">
+                <TaskTabs 
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                />
+                
+                <DirectoryFilter
+                  directories={directoryOptions}
+                  selectedDirectory={selectedDirectory}
+                  onDirectoryChange={handleDirectoryChange}
+                  totalCount={tabTotalCount}
+                  activeTab={activeTab}
+                  isLoading={loading}
+                />
+              </div>
             </div>
 
             <TaskList 
@@ -195,7 +244,7 @@ export function Home() {
               hasMore={hasMore}
               error={error}
               activeTab={activeTab}
-              onLoadMore={(filters) => loadMoreConversations(filters)}
+              onLoadMore={() => loadMoreConversations(getFiltersForTab(activeTab))}
             />
           </div>
         </div>

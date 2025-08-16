@@ -10,6 +10,9 @@ interface RecentDirectory {
 
 interface ConversationsContextType {
   conversations: ConversationSummaryWithLiveStatus[];
+  allConversations: ConversationSummaryWithLiveStatus[]; // For directory options calculation
+  workingDirectories: WorkingDirectory[]; // For accurate directory counts
+  totalConversationsCount: number; // Stable total count
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -19,8 +22,14 @@ interface ConversationsContextType {
     hasContinuation?: boolean;
     archived?: boolean;
     pinned?: boolean;
+    projectPath?: string;
   }) => Promise<void>;
-  loadMoreConversations: () => Promise<void>;
+  loadMoreConversations: (filters?: {
+    hasContinuation?: boolean;
+    archived?: boolean;
+    pinned?: boolean;
+    projectPath?: string;
+  }) => Promise<void>;
   getMostRecentWorkingDirectory: () => string | null;
 }
 
@@ -31,6 +40,9 @@ const LOAD_MORE_LIMIT = 40;
 
 export function ConversationsProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<ConversationSummaryWithLiveStatus[]>([]);
+  const [allConversations, setAllConversations] = useState<ConversationSummaryWithLiveStatus[]>([]);
+  const [workingDirectories, setWorkingDirectories] = useState<WorkingDirectory[]>([]);
+  const [totalConversationsCount, setTotalConversationsCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -42,6 +54,13 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     try {
       const response = await api.getWorkingDirectories();
       const directories: Record<string, RecentDirectory> = {};
+      
+      // Set working directories for accurate counts
+      setWorkingDirectories(response.directories);
+      
+      // Set total conversations count from working directories
+      const totalCount = response.directories.reduce((sum, dir) => sum + dir.conversationCount, 0);
+      setTotalConversationsCount(totalCount);
       
       response.directories.forEach(dir => {
         directories[dir.path] = {
@@ -89,6 +108,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     hasContinuation?: boolean;
     archived?: boolean;
     pinned?: boolean;
+    projectPath?: string;
   }) => {
     setLoading(true);
     setError(null);
@@ -107,6 +127,12 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
       ]);
       
       setConversations(data.conversations);
+      
+      // Update allConversations when no directory filter is applied (for consistent directory options)
+      if (!filters?.projectPath) {
+        setAllConversations(data.conversations);
+      }
+      
       updateRecentDirectories(data.conversations, apiDirectories);
       setHasMore(data.conversations.length === loadLimit);
       
@@ -130,6 +156,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     hasContinuation?: boolean;
     archived?: boolean;
     pinned?: boolean;
+    projectPath?: string;
   }) => {
     if (loadingMore || !hasMore) return;
     
@@ -210,7 +237,10 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
   return (
     <ConversationsContext.Provider 
       value={{ 
-        conversations, 
+        conversations,
+        allConversations,
+        workingDirectories,
+        totalConversationsCount,
         loading, 
         loadingMore, 
         hasMore, 

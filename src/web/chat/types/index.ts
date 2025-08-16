@@ -78,6 +78,9 @@ export interface WorkingDirectory {
   shortname: string;         // Smart suffix
   lastDate: string;          // ISO timestamp
   conversationCount: number; // Total conversations
+  taskCount: number;         // Non-archived, non-continuation conversations (Tasks tab)
+  historyCount: number;      // Continuation conversations (History tab)
+  archiveCount: number;      // Archived conversations (Archive tab)
 }
 
 export interface WorkingDirectoriesResponse {
