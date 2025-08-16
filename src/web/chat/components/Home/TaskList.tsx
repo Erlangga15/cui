@@ -12,6 +12,7 @@ interface TaskListProps {
   hasMore: boolean;
   error: string | null;
   activeTab: 'tasks' | 'history' | 'archive';
+  selectedDirectory: string;
   onLoadMore: (filters?: {
     hasContinuation?: boolean;
     archived?: boolean;
@@ -26,6 +27,7 @@ export function TaskList({
   hasMore, 
   error, 
   activeTab, 
+  selectedDirectory,
   onLoadMore 
 }: TaskListProps) {
   const navigate = useNavigate();
@@ -34,18 +36,31 @@ export function TaskList({
   const { recentDirectories, loadConversations } = useConversations();
   const [renamingSessionId, setRenamingSessionId] = React.useState<string | null>(null);
 
-  // Get filter parameters based on active tab
-  const getFiltersForTab = (tab: 'tasks' | 'history' | 'archive') => {
-    switch (tab) {
-      case 'tasks':
-        return { archived: false, hasContinuation: false };
-      case 'history':
-        return { archived: false, hasContinuation: true };
-      case 'archive':
-        return { archived: true };
-      default:
-        return {};
+  // Get filter parameters based on active tab and selected directory
+  const getFiltersForTab = (tab: 'tasks' | 'history' | 'archive', directory?: string) => {
+    const baseFilters = (() => {
+      switch (tab) {
+        case 'tasks':
+          return { archived: false, hasContinuation: false };
+        case 'history':
+          return { hasContinuation: true };
+        case 'archive':
+          return { archived: true, hasContinuation: false };
+        default:
+          return {};
+      }
+    })();
+
+    // Add directory filter if specific directory is selected
+    const directoryToUse = directory || selectedDirectory;
+    if (directoryToUse && directoryToUse !== 'all') {
+      return {
+        ...baseFilters,
+        projectPath: directoryToUse === 'no-project' ? undefined : directoryToUse
+      };
     }
+
+    return baseFilters;
   };
 
   const handleTaskClick = (sessionId: string) => {

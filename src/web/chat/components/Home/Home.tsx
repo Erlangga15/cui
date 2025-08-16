@@ -109,7 +109,7 @@ export function Home() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [loadConversations, activeTab]);
+  }, [loadConversations, activeTab, selectedDirectory]);
 
   // Get the most recent working directory from conversations
   const recentWorkingDirectory = conversations.length > 0 
@@ -244,6 +244,7 @@ export function Home() {
               hasMore={hasMore}
               error={error}
               activeTab={activeTab}
+              selectedDirectory={selectedDirectory}
               onLoadMore={() => loadMoreConversations(getFiltersForTab(activeTab))}
             />
           </div>
