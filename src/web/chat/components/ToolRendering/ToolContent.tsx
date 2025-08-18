@@ -11,6 +11,7 @@ import { TodoTool } from './tools/TodoTool';
 import { WebTool } from './tools/WebTool';
 import { TaskTool } from './tools/TaskTool';
 import { PlanTool } from './tools/PlanTool';
+import { ClaudeCodePlanTool } from './tools/ClaudeCodePlanTool';
 import { FallbackTool } from './tools/FallbackTool';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/web/chat/components/ui/collapsible';
 
@@ -172,6 +173,14 @@ export function ToolContent({
     case 'exit_plan_mode':
       return (
         <PlanTool
+          input={toolInput}
+          result={resultContent}
+        />
+      );
+    
+    case 'ExitPlanMode':
+      return (
+        <ClaudeCodePlanTool
           input={toolInput}
           result={resultContent}
         />
