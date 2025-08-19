@@ -906,16 +906,37 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
                 />
               </div>
             ) : (
-              <Textarea
-                ref={textareaRef}
-                className="min-h-[80px] max-h-[80vh] pt-4 pr-[60px] pb-[50px] border-none bg-transparent text-foreground font-sans text-base leading-relaxed resize-none outline-none overflow-y-auto scrollbar-thin ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                placeholder={permissionRequest && showPermissionUI ? "Deny and tell Claude what to do" : placeholder}
-                value={value}
-                onChange={handleTextChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                disabled={(isLoading || disabled) && !(permissionRequest && showPermissionUI)}
-              />
+              <div className="relative w-full">
+                <Textarea
+                  ref={textareaRef}
+                  className={cn(
+                    "min-h-[80px] max-h-[80vh] pt-4 pr-[60px] pb-[50px] border-none bg-transparent text-foreground font-sans text-base leading-relaxed resize-none outline-none overflow-y-auto scrollbar-thin ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200",
+                    (isLoading || disabled) && !(permissionRequest && showPermissionUI) && "opacity-60"
+                  )}
+                  placeholder={
+                    (isLoading || disabled) && !(permissionRequest && showPermissionUI) 
+                      ? "Sending message..." 
+                      : permissionRequest && showPermissionUI 
+                        ? "Deny and tell Claude what to do" 
+                        : placeholder
+                  }
+                  value={value}
+                  onChange={handleTextChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  disabled={(isLoading || disabled) && !(permissionRequest && showPermissionUI)}
+                />
+                
+                {/* Loading overlay for textarea */}
+                {(isLoading || disabled) && !(permissionRequest && showPermissionUI) && (
+                  <div className="absolute inset-0 bg-background/20 backdrop-blur-[0.5px] flex items-center justify-center rounded-2xl">
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Processing message...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             
             {/* Hidden textarea during processing for text insertion */}
@@ -1135,21 +1156,31 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        size="icon"
+                        size={isLoading ? "sm" : "icon"}
                         className={cn(
-                          "h-8 w-8 rounded-full",
+                          "rounded-full transition-all duration-200",
+                          isLoading 
+                            ? "h-8 px-3 gap-2 bg-foreground text-background hover:bg-foreground/90" 
+                            : "h-8 w-8",
                           (!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory'))
-                            ? 'bg-foreground/5 text-foreground/50 hover:bg-foreground/10'
+                            ? !isLoading && 'bg-foreground/5 text-foreground/50 hover:bg-foreground/10'
                             : 'bg-foreground text-background hover:bg-foreground/90'
                         )}
                         disabled={!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory')}
                         onClick={() => handleSubmit(selectedPermissionMode)}
                       >
-                        {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        {isLoading ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span className="text-xs font-medium">Sending...</span>
+                          </>
+                        ) : (
+                          <Send size={16} />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Send message (Ctrl+Enter)</p>
+                      <p>{isLoading ? "Sending message..." : "Send message (Ctrl+Enter)"}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

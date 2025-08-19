@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { MessageList } from '../MessageList/MessageList';
 import { Composer, ComposerRef } from '@/web/chat/components/Composer';
 import { ConversationHeader } from '../ConversationHeader/ConversationHeader';
@@ -16,6 +17,8 @@ export function ConversationView() {
   const [error, setError] = useState<string | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string>('Conversation');
   const [isPermissionDecisionLoading, setIsPermissionDecisionLoading] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [conversationSummary, setConversationSummary] = useState<ConversationSummary | null>(null);
   const [currentWorkingDirectory, setCurrentWorkingDirectory] = useState<string>('');
   const composerRef = useRef<ComposerRef>(null);
@@ -156,9 +159,11 @@ export function ConversationView() {
   });
 
   const handleSendMessage = async (message: string, workingDirectory?: string, model?: string, permissionMode?: string) => {
-    if (!sessionId) return;
+    if (!sessionId || isSendingMessage) return;
 
     setError(null);
+    setIsSendingMessage(true);
+    setPendingMessage(message); // Show optimistic UI
 
     try {
       const response = await api.startConversation({
@@ -173,6 +178,9 @@ export function ConversationView() {
       navigate(`/c/${response.sessionId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to send message');
+      setPendingMessage(null); // Clear pending message on error
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -291,6 +299,30 @@ export function ConversationView() {
         isLoading={isLoading}
         isStreaming={!!streamingId}
       />
+      
+      {/* Pending message - optimistic UI */}
+      {pendingMessage && isSendingMessage && (
+        <div className="max-w-3xl mx-auto w-full px-4 py-2">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start gap-3">
+              <div className="w-4 h-5 flex-shrink-0 flex items-center justify-center text-foreground relative">
+                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="bg-muted/50 border border-border/50 rounded-2xl px-4 py-3 relative">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <Loader2 size={12} className="animate-spin" />
+                    <span>Sending...</span>
+                  </div>
+                  <div className="text-foreground opacity-70">
+                    {pendingMessage}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div 
         className="sticky bottom-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm z-10 w-full flex justify-center px-2 pb-6"
@@ -302,7 +334,7 @@ export function ConversationView() {
             onSubmit={handleSendMessage}
             onStop={handleStop}
             onPermissionDecision={handlePermissionDecision}
-            isLoading={isConnected || isPermissionDecisionLoading}
+            isLoading={isConnected || isPermissionDecisionLoading || isSendingMessage}
             placeholder="Continue the conversation..."
             permissionRequest={currentPermissionRequest}
             showPermissionUI={true}

@@ -28,6 +28,7 @@ export function Home() {
   const [activeTab, setActiveTab] = useState<'tasks' | 'history' | 'archive'>('tasks');
   const [selectedDirectory, setSelectedDirectory] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const conversationCountRef = useRef(conversations.length);
   const composerRef = useRef<ComposerRef>(null);
 
@@ -111,6 +112,16 @@ export function Home() {
     };
   }, [loadConversations, activeTab, selectedDirectory]);
 
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (submitError) {
+      const timer = setTimeout(() => {
+        setSubmitError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [submitError]);
+
   // Get the most recent working directory from conversations
   const recentWorkingDirectory = conversations.length > 0 
     ? conversations[0].projectPath 
@@ -118,6 +129,7 @@ export function Home() {
 
   const handleComposerSubmit = async (text: string, workingDirectory: string, model: string, permissionMode: string) => {
     setIsSubmitting(true);
+    setSubmitError(null); // Clear any previous errors
     
     try {
       const response = await api.startConversation({
@@ -131,8 +143,8 @@ export function Home() {
       navigate(`/c/${response.sessionId}`);
     } catch (error) {
       console.error('Failed to start conversation:', error);
-      // You might want to show an error message to the user here
-      alert(`Failed to start conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setSubmitError(`Failed to start conversation: ${errorMessage}`);
       setIsSubmitting(false);
     }
   };
@@ -159,6 +171,26 @@ export function Home() {
   return (
     <div className="flex flex-col h-screen w-full bg-background">
       <Header />
+      
+      {/* Error Banner */}
+      {submitError && (
+        <div 
+          className="bg-red-500/10 border-b border-red-500 text-red-600 dark:text-red-400 px-4 py-3 text-sm animate-in slide-in-from-top duration-300"
+          role="alert"
+          aria-label="Error message"
+        >
+          <div className="flex items-center justify-between max-w-3xl mx-auto">
+            <span>{submitError}</span>
+            <button
+              onClick={() => setSubmitError(null)}
+              className="ml-4 text-red-500 hover:text-red-700 text-lg font-semibold"
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="relative flex flex-1 w-full h-full overflow-hidden transition-all duration-[250ms] z-[1]">
         <div className="flex flex-col h-full w-full">
