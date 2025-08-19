@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { ChevronDown, Mic, Send, Loader2, Sparkles, Laptop, Square, Check, X, MicOff, Zap, Bot, Drone, Code2, Gauge, Rocket, FileText } from 'lucide-react';
 import { DropdownSelector, DropdownOption } from '../DropdownSelector';
 import { PermissionDialog } from '../PermissionDialog';
@@ -350,6 +350,15 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
     focusedIndex: -1,
     type: 'file',
   });
+  const [modeChangeTooltip, setModeChangeTooltip] = useState<{
+    visible: boolean;
+    mode: string;
+    timestamp: number;
+  }>({
+    visible: false,
+    mode: '',
+    timestamp: 0,
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
   
@@ -542,6 +551,37 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
       type: 'file',
     });
   };
+
+  const cycleModeSelection = useCallback(() => {
+    const modes = ['default', 'acceptEdits', 'bypassPermissions', 'plan'];
+    const currentIndex = modes.indexOf(selectedPermissionMode);
+    const nextIndex = (currentIndex + 1) % modes.length;
+    const nextMode = modes[nextIndex];
+    
+    setSelectedPermissionMode(nextMode);
+    
+    // Show visual feedback
+    const timestamp = Date.now();
+    setModeChangeTooltip({
+      visible: true,
+      mode: nextMode,
+      timestamp
+    });
+    
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      setModeChangeTooltip(prev => 
+        prev.timestamp === timestamp ? { ...prev, visible: false } : prev
+      );
+    }, 2000);
+    
+    // Focus input after mode change to ensure smooth UX
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 0);
+  }, [selectedPermissionMode]);
 
   const getPermissionModeLabel = (mode: string): string => {
     switch (mode) {
@@ -742,6 +782,9 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
         e.preventDefault();
         handleSubmit(selectedPermissionMode);
       }
+    } else if (e.key === '/' && e.ctrlKey) {
+      e.preventDefault();
+      cycleModeSelection();
     }
   };
 
@@ -1034,70 +1077,100 @@ export const Composer = forwardRef<ComposerRef, ComposerProps>(function Composer
               </TooltipProvider>
             ) : audioState === 'idle' && (
               <div className="flex items-center gap-2">
-                {/* Combined Permission Mode Button with Dropdown */}
-                <div className={`flex items-center rounded-full overflow-hidden ${
-                  (!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory'))
-                    ? 'bg-foreground/5 text-foreground/50'
-                    : 'bg-foreground text-background'
-                }`}>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          className="h-8 min-w-[48px] w-[48px] px-3 py-0.5 bg-transparent text-inherit hover:bg-white/10 border-0 shadow-none"
-                          disabled={!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory')}
-                          onClick={() => handleSubmit(selectedPermissionMode)}
-                        >
-                          {isLoading ? <Loader2 size={14} className="animate-spin" /> : getPermissionModeLabel(selectedPermissionMode)}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{getPermissionModeTitle(selectedPermissionMode)}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <DropdownSelector
-                    options={[
-                      { value: 'default', label: 'Ask', description: 'Ask before making changes' },
-                      { value: 'acceptEdits', label: 'Auto', description: 'Apply edits automatically' },
-                      { value: 'bypassPermissions', label: 'Yolo', description: 'No permission prompts' },
-                      { value: 'plan', label: 'Plan', description: 'Planning mode only' },
-                    ]}
-                    value={selectedPermissionMode}
-                    onChange={setSelectedPermissionMode}
-                    isOpen={isPermissionDropdownOpen}
-                    onOpenChange={setIsPermissionDropdownOpen}
-                    showFilterInput={false}
-                    renderOption={(option) => (
-                      <div className="flex flex-col items-start gap-0.5 w-full">
-                        <div className="flex items-center gap-2">
-                          {getPermissionModeIcon(option.value)}
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </div>
-                        {option.description && (
-                          <span className="text-xs text-muted-foreground/80 pl-[22px]">{option.description}</span>
-                        )}
+                {/* Mode Selector - standalone */}
+                <DropdownSelector
+                  options={[
+                    { value: 'default', label: 'Ask', description: 'Ask before making changes' },
+                    { value: 'acceptEdits', label: 'Auto', description: 'Apply edits automatically' },
+                    { value: 'bypassPermissions', label: 'Yolo', description: 'No permission prompts' },
+                    { value: 'plan', label: 'Plan', description: 'Planning mode only' },
+                  ]}
+                  value={selectedPermissionMode}
+                  onChange={setSelectedPermissionMode}
+                  isOpen={isPermissionDropdownOpen}
+                  onOpenChange={setIsPermissionDropdownOpen}
+                  showFilterInput={false}
+                  renderOption={(option) => (
+                    <div className="flex flex-col items-start gap-0.5 w-full">
+                      <div className="flex items-center gap-2">
+                        {getPermissionModeIcon(option.value)}
+                        <span className="text-sm font-medium">{option.label}</span>
                       </div>
-                    )}
-                    renderTrigger={({ onClick }) => (
+                      {option.description && (
+                        <span className="text-xs text-muted-foreground/80 pl-[22px]">{option.description}</span>
+                      )}
+                    </div>
+                  )}
+                  renderTrigger={({ onClick }) => (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3 text-muted-foreground hover:bg-muted/50 rounded-full"
+                            onClick={onClick}
+                            disabled={!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory')}
+                            aria-label="Select permission mode"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {getPermissionModeIcon(selectedPermissionMode)}
+                              <span className="text-sm">{getPermissionModeLabel(selectedPermissionMode)}</span>
+                              <ChevronDown size={14} />
+                            </span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{getPermissionModeTitle(selectedPermissionMode)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                />
+                
+                {/* Send Button - separated */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        className="w-8 h-8 bg-transparent text-inherit border-l border-white/20 opacity-80 hover:opacity-100 hover:bg-white/10 border-0 shadow-none rounded-none flex items-center justify-center p-0"
-                        onClick={onClick}
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8 rounded-full",
+                          (!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory'))
+                            ? 'bg-foreground/5 text-foreground/50 hover:bg-foreground/10'
+                            : 'bg-foreground text-background hover:bg-foreground/90'
+                        )}
                         disabled={!value.trim() || isLoading || disabled || (showDirectorySelector && selectedDirectory === 'Select directory')}
-                        aria-label="Select permission mode"
+                        onClick={() => handleSubmit(selectedPermissionMode)}
                       >
-                        <ChevronDown size={14} />
+                        {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                       </Button>
-                    )}
-                  />
-                </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Send message (Ctrl+Enter)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             )}
           </div>
         </div>
       </div>
+      
+      {/* Mode Change Feedback Tooltip */}
+      {modeChangeTooltip.visible && (
+        <div className="absolute top-[-50px] left-1/2 transform -translate-x-1/2 z-50
+                        bg-black/90 text-white px-3 py-2 rounded-lg text-sm font-medium
+                        animate-in fade-in-0 slide-in-from-bottom-2 duration-200
+                        backdrop-blur-sm shadow-lg border border-white/10">
+          <div className="flex items-center gap-2">
+            {getPermissionModeIcon(modeChangeTooltip.mode)}
+            <span>Mode: {getPermissionModeLabel(modeChangeTooltip.mode)}</span>
+          </div>
+        </div>
+      )}
       
       {/* Autocomplete Dropdown */}
       {(enableFileAutocomplete || onFetchCommands) && (
