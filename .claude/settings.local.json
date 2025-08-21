@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(git commit:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "figma-dev-mode-mcp-server",
+    "context7",
+    "browser-tools-mcp",
+    "sequential-thinking",
+    "playwright",
+    "postgres-read",
+    "postgres-all"
+  ]
+}

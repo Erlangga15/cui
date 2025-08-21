@@ -1,0 +1,61 @@
+{
+  "mcpServers": {
+    "figma-dev-mode-mcp-server": {
+      "type": "sse",
+      "url": "http://127.0.0.1:3845/sse"
+    },
+    "context7": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    },
+    "browser-tools-mcp": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@agentdeskai/browser-tools-mcp@latest"
+      ]
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "postgres-read": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://localhost:localhost123@127.0.0.1:5432/localhost"
+      ],
+      "env": {}
+    },
+    "postgres-all": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network=host",
+        "-e", "DATABASE_URI=postgresql://localhost:localhost123@127.0.0.1:5432/localhost",
+        "crystaldba/postgres-mcp",
+        "--access-mode=unrestricted"
+      ]
+    }
+  }
+}
